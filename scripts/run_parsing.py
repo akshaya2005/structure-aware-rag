@@ -1,28 +1,38 @@
-"""CLI: parse QASPER train/dev JSON into data/processed/{split}_units.jsonl.
+"""CLI: parse QASPER train/dev into data/processed/{split}_units.jsonl.
 
-Usage: python3 scripts/run_parsing.py
+Usage: python3 scripts/run_parsing.py [--source hf|json]
+  hf   (default) load allenai/qasper from the HF hub
+  json read data/raw/qasper-{split}-v0.3.json
 """
 
+import argparse
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from rag.parsing import parse_qasper_file, write_jsonl  # noqa: E402
+from rag.parsing import load_qasper, load_qasper_hf, parse_paper, write_jsonl  # noqa: E402
 
 RAW_DIR = ROOT / "data" / "raw"
 OUT_DIR = ROOT / "data" / "processed"
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--source", default="hf", choices=("hf", "json"))
+    args = parser.parse_args()
+
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
     for split in ("train", "dev"):
-        in_path = RAW_DIR / f"qasper-{split}-v0.3.json"
+        if args.source == "hf":
+            data = load_qasper_hf(split)
+        else:
+            data = load_qasper(RAW_DIR / f"qasper-{split}-v0.3.json")
         out_path = OUT_DIR / f"{split}_units.jsonl"
 
-        units = list(parse_qasper_file(in_path))
+        units = [unit for paper_id, paper in data.items() for unit in parse_paper(paper_id, paper)]
         write_jsonl(iter(units), out_path)
 
         num_papers = len({u.paper_id for u in units})

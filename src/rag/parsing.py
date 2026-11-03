@@ -33,6 +33,53 @@ def load_qasper(path: str | Path) -> dict:
         return json.load(f)
 
 
+HF_DATASET = "allenai/qasper"
+# The hub repo only ships a loading script, which datasets>=4 refuses to run;
+# the hub's auto-converted parquet branch loads without it.
+HF_REVISION = "refs/convert/parquet"
+HF_SPLITS = {"train": "train", "dev": "validation", "test": "test"}
+
+
+def hf_row_to_paper(row: dict) -> dict:
+    """Convert one HF row (lists of dicts stored as dicts of lists) to the raw-JSON paper shape."""
+    full_text = row["full_text"]
+    figs = row["figures_and_tables"]
+    qas = row["qas"]
+
+    questions = []
+    for i in range(len(qas["question_id"])):
+        qa = {key: qas[key][i] for key in qas if key != "answers"}
+        answers = qas["answers"][i]
+        qa["answers"] = [
+            {"answer": answer, "annotation_id": annotation_id, "worker_id": worker_id}
+            for answer, annotation_id, worker_id in zip(
+                answers["answer"], answers["annotation_id"], answers["worker_id"]
+            )
+        ]
+        questions.append(qa)
+
+    return {
+        "title": row["title"],
+        "abstract": row["abstract"],
+        "full_text": [
+            {"section_name": name, "paragraphs": paragraphs}
+            for name, paragraphs in zip(full_text["section_name"], full_text["paragraphs"])
+        ],
+        "qas": questions,
+        "figures_and_tables": [
+            {"caption": caption, "file": file} for caption, file in zip(figs["caption"], figs["file"])
+        ],
+    }
+
+
+def load_qasper_hf(split: str) -> dict:
+    """Load a QASPER split ("train" | "dev" | "test") from the HF hub into {paper_id: paper_dict}."""
+    from datasets import load_dataset
+
+    ds = load_dataset(HF_DATASET, revision=HF_REVISION, split=HF_SPLITS[split])
+    return {row["id"]: hf_row_to_paper(row) for row in ds}
+
+
 def parse_paper(paper_id: str, paper: dict) -> list[ParsedUnit]:
     """Flatten one paper's full_text paragraphs and figure/table captions into units."""
     units: list[ParsedUnit] = []
@@ -71,6 +118,13 @@ def parse_qasper_file(path: str | Path) -> Iterator[ParsedUnit]:
     data = load_qasper(path)
     for paper_id, paper in data.items():
         yield from parse_paper(paper_id, paper)
+
+
+def read_jsonl(path: str | Path) -> Iterator[ParsedUnit]:
+    """Inverse of write_jsonl: stream ParsedUnits back from a {split}_units.jsonl file."""
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            yield ParsedUnit(**json.loads(line))
 
 
 def write_jsonl(units: Iterator[ParsedUnit], out_path: str | Path) -> int:
