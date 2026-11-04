@@ -21,6 +21,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from rag.benchmark import (  # noqa: E402
     DEFAULT_KS,
+    BM25Retriever,
     DenseRetriever,
     RandomRetriever,
     build_corpus,
@@ -38,7 +39,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--split", default="dev", choices=("train", "dev", "test"))
     parser.add_argument("--source", default="hf", choices=("hf", "json"))
-    parser.add_argument("--retriever", default="dense", choices=("dense", "random"))
+    parser.add_argument("--retriever", default="dense", choices=("dense", "bm25", "random"))
     parser.add_argument("--scope", default="paper", choices=("paper", "corpus"))
     parser.add_argument("--model", default=DEFAULT_MODEL_NAME)
     parser.add_argument("--device", default=None, help="cpu | cuda | mps (default: auto)")
@@ -59,6 +60,8 @@ def main() -> None:
     if args.retriever == "dense":
         embedder = SentenceTransformerEmbedder(EmbedderConfig(model_name=args.model, device=args.device))
         retriever = DenseRetriever(embedder, corpus.chunks, scope=args.scope)
+    elif args.retriever == "bm25":
+        retriever = BM25Retriever(corpus.chunks, scope=args.scope)
     else:
         retriever = RandomRetriever(corpus.chunks, seed=args.seed)
 
@@ -69,7 +72,7 @@ def main() -> None:
     for name, value in summary.items():
         print(f"{name:<14}{value:>8.4f}")
 
-    scope = args.scope if args.retriever == "dense" else "paper"
+    scope = args.scope if args.retriever in ("dense", "bm25") else "paper"
     run_name = f"{args.split}_{args.retriever}_{scope}_c{args.chunk_size}_o{args.overlap}"
     RESULTS_DIR.mkdir(exist_ok=True)
     summary_path = RESULTS_DIR / f"{run_name}.json"

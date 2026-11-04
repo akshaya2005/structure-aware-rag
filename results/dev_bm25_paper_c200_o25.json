@@ -1,0 +1,50 @@
+{
+  "run": "dev_bm25_paper_c200_o25",
+  "args": {
+    "split": "dev",
+    "source": "json",
+    "retriever": "bm25",
+    "scope": "paper",
+    "model": "sentence-transformers/all-MiniLM-L6-v2",
+    "device": null,
+    "chunk_size": 200,
+    "overlap": 25,
+    "ks": [
+      1,
+      3,
+      5,
+      10
+    ],
+    "seed": 0
+  },
+  "chunker": {
+    "chunk_size": 200,
+    "overlap": 25
+  },
+  "stats": {
+    "papers": 281,
+    "questions_total": 1005,
+    "evidence_strings": 2085,
+    "evidence_strings_unmatched": 100,
+    "skipped_unanswerable": 60,
+    "skipped_unmatched_evidence": 4,
+    "skipped_no_evidence": 18,
+    "questions_evaluated": 923,
+    "chunks": 11492
+  },
+  "metrics": {
+    "mrr": 0.41163347607009576,
+    "hit@1": 0.24918743228602383,
+    "recall@1": 0.18022650070463267,
+    "precision@1": 0.24918743228602383,
+    "hit@3": 0.5124593716143012,
+    "recall@3": 0.38145058960477785,
+    "precision@3": 0.20910075839653305,
+    "hit@5": 0.6316359696641387,
+    "recall@5": 0.48703536225011823,
+    "precision@5": 0.17898158179848322,
+    "hit@10": 0.800650054171181,
+    "recall@10": 0.6627843442477376,
+    "precision@10": 0.13737811484290358
+  }
+}
