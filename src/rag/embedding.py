@@ -30,6 +30,7 @@ class EmbedderConfig:
     device: str | None = None  # None lets sentence-transformers pick cuda/mps/cpu
     batch_size: int = 64
     normalize: bool = True
+    revision: str | None = None
 
 
 class SentenceTransformerEmbedder:
@@ -46,11 +47,15 @@ class SentenceTransformerEmbedder:
             return
         from sentence_transformers import SentenceTransformer
 
-        self._model = SentenceTransformer(self.config.model_name, device=self.config.device)
+        self._model = SentenceTransformer(
+            self.config.model_name, device=self.config.device, revision=self.config.revision
+        )
         self.dim = self._model.get_sentence_embedding_dimension()
 
     def embed(self, texts: list[str]) -> np.ndarray:
         self.load()
+        if not texts:
+            return np.empty((0, self.dim), dtype=np.float32)
         return self._model.encode(
             texts,
             batch_size=self.config.batch_size,
@@ -58,3 +63,31 @@ class SentenceTransformerEmbedder:
             convert_to_numpy=True,
             show_progress_bar=False,
         )
+
+
+def cached_embeddings(embedder: Embedder, texts: list[str], directory, *, cache_tag=""):
+    """Content-addressed cache; order, model config, and text changes invalidate it."""
+    import hashlib
+    import json
+    from dataclasses import asdict, is_dataclass
+    from pathlib import Path
+    import uuid
+
+    config = getattr(embedder, "config", None)
+    identity = {"model": embedder.model_name, "tag": cache_tag,
+                "config": asdict(config) if is_dataclass(config) else None, "texts": texts}
+    key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+    path = Path(directory) / f"{key}.npy"
+    if path.exists():
+        vectors = np.load(path, allow_pickle=False)
+    else:
+        vectors = np.asarray(embedder.embed(texts), dtype=np.float32)
+        if vectors.ndim != 2 or len(vectors) != len(texts) or not np.isfinite(vectors).all():
+            raise ValueError("invalid embedding shape or values")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(f".{uuid.uuid4().hex}.tmp.npy")
+        np.save(temporary, vectors, allow_pickle=False)
+        temporary.replace(path)
+    if vectors.ndim != 2 or len(vectors) != len(texts) or not np.isfinite(vectors).all():
+        raise ValueError("invalid cached embedding shape or values")
+    return vectors
