@@ -6,3 +6,4 @@ uvicorn
 httpx
 datasets
 rank_bm25  # reference implementation used by scripts/check_bm25_against_reference.py
+faiss-cpu

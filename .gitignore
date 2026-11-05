@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+.pytest_cache/
+artifacts/
+results/**/*_artifacts/
+data/raw/
+# Detailed per-question experiment logs; keep CSV/Markdown summaries reviewable.
+results/**/*.json
